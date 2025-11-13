@@ -322,6 +322,79 @@ function createApp(forcecli, config) {
 }
 
 //
+// Validate required template properties from template.json schema
+// Checks if template.json exists and validates that all required properties are provided
+//
+function validateTemplateProperties(templateLocalPath, templateProperties) {
+    try {
+        var templateJsonPath = path.join(templateLocalPath, 'template.json');
+        if (fs.existsSync(templateJsonPath)) {
+            var templateJsonContent = fs.readFileSync(templateJsonPath, 'utf8');
+            var templateData = JSON.parse(templateJsonContent);
+            
+            // Check if templatePrerequisites.templateProperties exists
+            if (templateData.templatePrerequisites && templateData.templatePrerequisites.templateProperties) {
+                var requiredProperties = [];
+                var providedProperties = Object.keys(templateProperties);
+                
+                // Find all required properties
+                for (var propertyName in templateData.templatePrerequisites.templateProperties) {
+                    if (templateData.templatePrerequisites.templateProperties.hasOwnProperty(propertyName)) {
+                        var property = templateData.templatePrerequisites.templateProperties[propertyName];
+                        if (property.required === true) {
+                            requiredProperties.push(propertyName);
+                            
+                            // Check if required property is provided
+                            if (providedProperties.indexOf(propertyName) === -1) {
+                                var description = property.description || '';
+                                throw new Error('Missing required template property: ' + propertyName + 
+                                    (description ? ' (' + description + ')' : '') + 
+                                    '. Please provide it using --template-' + propertyName + '=<value>');
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } catch (error) {
+        // If validation fails, throw error to stop execution
+        if (error.message && error.message.indexOf('Missing required template property') !== -1) {
+            throw error;
+        }
+        // For other errors (like JSON parse errors), silently continue
+        // Template may not have template.json or it may be malformed
+    }
+}
+
+//
+// Extract template properties from config flags
+// Extracts flags matching the pattern --template-<propertyName>
+// and builds a templateProperties object
+//
+function extractTemplateProperties(vals) {
+    var templateProperties = {};
+    
+    for (var key in vals) {
+        if (vals.hasOwnProperty(key)) {
+            // Check if key starts with 'template-' (case-insensitive)
+            var lowerKey = key.toLowerCase();
+            if (lowerKey.startsWith('template-')) {
+                // Extract property name by removing 'template-' prefix
+                var propertyName = key.substring('template-'.length);
+                var value = vals[key];
+                
+                // Only add non-empty values
+                if (value !== undefined && value !== null && value !== '') {
+                    templateProperties[propertyName] = value;
+                }
+            }
+        }
+    }
+    
+    return templateProperties;
+}
+
+//
 // Override sdk dependencies in package.json
 //
 function overrideSdkDependencies(packageJsonPath, sdkDependenciesString) {
@@ -451,6 +524,12 @@ function actuallyCreateApp(forcecli, config) {
             overrideSdkDependencies(path.join(config.templateLocalPath, 'package.json'), config.sdkdependencies);
         }
 
+        // Extract template properties from config flags
+        config.templateProperties = extractTemplateProperties(config);
+
+        // Validate required template properties from template.json (if it exists)
+        validateTemplateProperties(config.templateLocalPath, config.templateProperties);
+
         // Getting apptype from template
         config.apptype = require(path.join(config.templateLocalPath, 'template.js')).appType;
 
@@ -492,5 +571,7 @@ function actuallyCreateApp(forcecli, config) {
 }
 
 module.exports = {
-    createApp
+    createApp,
+    extractTemplateProperties,
+    validateTemplateProperties
 };

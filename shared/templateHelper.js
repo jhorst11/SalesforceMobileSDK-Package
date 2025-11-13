@@ -70,12 +70,11 @@ function getTemplates(cli, templateSourceOrRepoUri, includeDescriptions) {
         var applicableTemplates = templates
             .filter(template => cli.appTypes.includes(template.appType) && cli.platforms.filter(platform => template.platforms.includes(platform)).length > 0);
 
-        // If descriptions are requested, add them to each template
-        if (includeDescriptions) {
-            applicableTemplates.forEach(function(template) {
-                template.metadata = getTemplateMetadata(template.path, repoDir);
-            });
-        }
+        // Always load metadata so template properties can be displayed in usage examples
+        // This ensures template properties are shown even when --doc flag is not used
+        applicableTemplates.forEach(function(template) {
+            template.metadata = getTemplateMetadata(template.path, repoDir);
+        });
 
         // Cleanup
         utils.removeFile(tmpDir);
@@ -163,10 +162,9 @@ function getTemplate(templateName, templateSourceOrRepoUri, includeDescriptions)
             return null;
         }
         
-        // If descriptions are requested, add metadata
-        if (includeDescriptions) {
-            template.metadata = getTemplateMetadata(template.path, repoDir);
-        }
+        // Always load metadata so template properties can be displayed in usage examples
+        // This ensures template properties are shown even when --doc flag is not used
+        template.metadata = getTemplateMetadata(template.path, repoDir);
         
         // Cleanup
         utils.removeFile(tmpDir);
@@ -175,6 +173,28 @@ function getTemplate(templateName, templateSourceOrRepoUri, includeDescriptions)
     } catch (error) {
         return null;
     }
+}
+
+//
+// Helper function to build template property flags from metadata
+// Shared by displayTemplateList and displayTemplateDetail
+//
+function buildTemplatePropertyFlags(metadata, showAllProperties) {
+    var flags = '';
+    if (metadata && metadata.templatePrerequisites && metadata.templatePrerequisites.templateProperties) {
+        var templateProperties = metadata.templatePrerequisites.templateProperties;
+        for (var propertyName in templateProperties) {
+            if (templateProperties.hasOwnProperty(propertyName)) {
+                var property = templateProperties[propertyName];
+                    // Always show required properties, optionally show all properties if showAllProperties is true
+                    if (property.required === true || showAllProperties) {
+                        var placeholder = property.required ? '<' + propertyName.toUpperCase() + '>' : '[' + propertyName.toUpperCase() + ']';
+                        flags += ' --template-' + propertyName + '=' + placeholder;
+                    }
+            }
+        }
+    }
+    return flags;
 }
 
 //
@@ -197,6 +217,12 @@ function displayTemplateList(templates, source, cliName, commandPrefix, includeD
                 
                 if (extraRequiredArgs) {
                     command += ` ${extraRequiredArgs}`;
+                }
+
+                // Add template property flags if metadata is available
+                // Always show required properties, show all if descriptions are requested
+                if (template.metadata) {
+                    command += buildTemplatePropertyFlags(template.metadata, includeDescriptions);
                 }
 
                 var jsonTemplate = {
@@ -241,6 +267,12 @@ function displayTemplateList(templates, source, cliName, commandPrefix, includeD
             command += ` ${extraRequiredArgs}`;
         }
         
+        // Add template property flags if metadata is available
+        // Always show required properties, show all if descriptions are requested
+        if (template.metadata) {
+            command += buildTemplatePropertyFlags(template.metadata, includeDescriptions);
+        }
+        
         logInfo(command, COLOR.magenta);
         
         // If descriptions are requested and available, show them
@@ -279,6 +311,12 @@ function displayTemplateDetail(template, source, cliName, commandPrefix, include
         
         if (extraRequiredArgs) {
             command += ` ${extraRequiredArgs}`;
+        }
+
+        // Add template property flags if metadata is available
+        // Always show required properties, show all if descriptions are requested
+        if (template.metadata) {
+            command += buildTemplatePropertyFlags(template.metadata, includeDescriptions);
         }
 
         var jsonOutput = {
@@ -322,6 +360,12 @@ function displayTemplateDetail(template, source, cliName, commandPrefix, include
     // Add additional required args if provided
     if (extraRequiredArgs) {
         command += ` ${extraRequiredArgs}`;
+    }
+    
+    // Add template property flags if metadata is available
+    // Always show required properties, show all if descriptions are requested
+    if (template.metadata) {
+        command += buildTemplatePropertyFlags(template.metadata, includeDescriptions);
     }
     
     logInfo('\nUsage:', COLOR.magenta);

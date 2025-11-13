@@ -159,10 +159,58 @@ class OclifAdapter extends Command {
         return flagsConfig;
     }
 
+    /**
+     * Extract template-* flags from raw argv arguments
+     * @param {Array} argv Raw command line arguments
+     * @returns {Object} Object containing template property flags
+     */
+    static extractTemplatePropertyFlags(argv) {
+        const templateProperties = {};
+        
+        for (let i = 0; i < argv.length; i++) {
+            const arg = argv[i];
+            // Check if argument matches --template-<name>=<value> or --template-<name> <value>
+            if (arg.startsWith('--template-')) {
+                let flagName, flagValue;
+                
+                // Check if flag has value in format --flag=value
+                const equalIndex = arg.indexOf('=');
+                if (equalIndex !== -1) {
+                    flagName = arg.substring(0, equalIndex);
+                    flagValue = arg.substring(equalIndex + 1);
+                } else {
+                    // Flag value is in next argument
+                    flagName = arg;
+                    if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) {
+                        flagValue = argv[i + 1];
+                        i++; // Skip the next argument since we consumed it
+                    } else {
+                        flagValue = '';
+                    }
+                }
+                
+                // Extract property name by removing '--template-' prefix
+                const propertyName = flagName.substring('--template-'.length);
+                if (propertyName && flagValue !== undefined) {
+                    templateProperties[flagName.substring(2)] = flagValue; // Remove '--' prefix for consistency
+                }
+            }
+        }
+        
+        return templateProperties;
+    }
+
     execute(cli, klass) {
         const { flags } = this.parse(klass);
-        if (OclifAdapter.validateCommand(cli, klass.command.name, flags)) {
-            return OclifAdapter.runCommand(cli, klass.command.name, flags);
+        
+        // Extract template-* flags from raw argv (oclif strips unknown flags by default)
+        const templatePropertyFlags = OclifAdapter.extractTemplatePropertyFlags(this.argv);
+        
+        // Merge template property flags into the flags object
+        const mergedFlags = { ...flags, ...templatePropertyFlags };
+        
+        if (OclifAdapter.validateCommand(cli, klass.command.name, mergedFlags)) {
+            return OclifAdapter.runCommand(cli, klass.command.name, mergedFlags);
         }
     }
 

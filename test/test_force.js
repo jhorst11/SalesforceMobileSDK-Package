@@ -162,7 +162,7 @@ function main(args) {
                 for (var k=0; k<template.platforms.length; k++) {
                     var os = template.platforms[k];
                     if (chosenOperatingSystems.length == 0 || chosenOperatingSystems.indexOf(os) >= 0) {
-                        createCompileApp(tmpDir, os, template.appType, template.path, pluginRepoUri, useSfdxRequested, sdkDependencies, consumerKey, callbackURL, loginServer);
+                        createCompileApp(tmpDir, os, template.appType, template.path, pluginRepoUri, useSfdxRequested, sdkDependencies, consumerKey, callbackURL, loginServer, undefined);
                     }
                 }
             }
@@ -174,14 +174,14 @@ function main(args) {
             if (testingWithAppType) {
                 for (var j=0; j<chosenAppTypes.length; j++) {
                     var appType = chosenAppTypes[j];
-                    createCompileApp(tmpDir, os, appType, null, pluginRepoUri, useSfdxRequested, sdkDependencies, consumerKey, callbackURL, loginServer);
+                    createCompileApp(tmpDir, os, appType, null, pluginRepoUri, useSfdxRequested, sdkDependencies, consumerKey, callbackURL, loginServer, undefined);
                 }
             }
 
             if (testingWithTemplate) {
                 // NB: chosenAppTypes[0] is appType from template
                 var appType = chosenAppTypes.length > 0 ? chosenAppTypes[0] : [templateHelper.getAppTypeFromTemplate(templateRepoUri)];
-                createCompileApp(tmpDir, os, appType, templateRepoUri, pluginRepoUri, useSfdxRequested, sdkDependencies, consumerKey, callbackURL, loginServer);
+                createCompileApp(tmpDir, os, appType, templateRepoUri, pluginRepoUri, useSfdxRequested, sdkDependencies, consumerKey, callbackURL, loginServer, undefined);
             }
         }
     }
@@ -308,7 +308,7 @@ function updatePluginRepo(tmpDir, os, pluginRepoDir, sdkBranch) {
 //
 // Create and compile app
 //
-function createCompileApp(tmpDir, os, actualAppType, templateRepoUri, pluginRepoUri, useSfdxRequested, sdkDependencies, consumerKey, callbackURL, loginServer) {
+function createCompileApp(tmpDir, os, actualAppType, templateRepoUri, pluginRepoUri, useSfdxRequested, sdkDependencies, consumerKey, callbackURL, loginServer, templateProperties) {
     var execArgs = '';
     var isNative = actualAppType == APP_TYPE.native || actualAppType == APP_TYPE.native_swift || actualAppType == APP_TYPE.native_kotlin; 
     var isReactNative = actualAppType == APP_TYPE.react_native || actualAppType == APP_TYPE.react_native_typescript;
@@ -374,6 +374,16 @@ function createCompileApp(tmpDir, os, actualAppType, templateRepoUri, pluginRepo
 
     if (sdkDependencies) {
         execArgs += ' --sdkDependencies=' + JSON.stringify(sdkDependencies).replace(/"/g, '\\"');
+    }
+
+    // Add template properties if provided
+    if (templateProperties) {
+        for (var propertyName in templateProperties) {
+            if (templateProperties.hasOwnProperty(propertyName)) {
+                var propertyValue = templateProperties[propertyName];
+                execArgs += ' --template-' + propertyName + '=' + propertyValue;
+            }
+        }
     }
 
     // Generation
